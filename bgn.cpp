@@ -5,6 +5,7 @@
 #include<algorithm>
 #include<exception>
 #include<cstdio>
+#include<time.h>
 
 using namespace std;
 
@@ -44,14 +45,10 @@ public:
         return {static_cast<bint_t>(y&0xffffffff),static_cast<bint_t>(y>>32)};
     }
 
-    auto div(const base_data_t n) const
+    pair<bint_t,bint_t> divmod(const base_data_t n,const bint_t carry=0) const
     {
-        return x/n.x;
-    }
-
-    auto mod(const base_data_t n) const
-    {
-        return x%n.x;
+        uint64_t y=uint64_t(x)+(uint64_t(carry)<<32);
+        return {y/n.x,y%n.x};
     }
 
     bool operator<(const base_data_t n)const{return x<n.x;}
@@ -93,14 +90,15 @@ public:
     bool operator==(const ubgn &y)const{return this->cmp(y)==0;}
     bool operator!=(const ubgn &y)const{return this->cmp(y)!=0;}
     bool operator<(const ubgn &y)const{return this->cmp(y)<0;}
-    bool operator<=(const ubgn &y)const{return this->cmp(y)<0 || this->cmp(y)==0;}
+    bool operator<=(const ubgn &y)const{return !(*this>y);} //{return this->cmp(y)<0 || this->cmp(y)==0;}
     bool operator>(const ubgn &y)const{return this->cmp(y)>0;}
-    bool operator>=(const ubgn &y)const{return this->cmp(y)>0 || this->cmp(y)==0;}
+    bool operator>=(const ubgn &y)const{return !(*this<y);}//{return this->cmp(y)>0 || this->cmp(y)==0;}
 
-    ubgn mul_base(const base_data_t x)const;
+    ubgn& mul_base(const base_data_t x);
     ubgn mul_meta(const ubgn &b)const;
     ubgn mul_karatsuba(const ubgn &b)const;
 
+    pair<ubgn,base_data_t::bint_t> divmod_base(const base_data_t x)const;
     pair<ubgn,ubgn> divmod(const ubgn &b)const;
 
     base_data_t& operator[](size_t i){return v[i];}
@@ -122,23 +120,25 @@ public:
 
     string to_string() const
     {
-        /* string s;
-        for(auto i=0;i<v.size();i++)
-        {
-            char a[20];
-            sprintf(a,"%.8x",v[i]);
-            s=string(a)+s;
-        }
-        return s; */
+        if(*this==0)
+            return "0";
         string s;
+        char st[32];
         ubgn x=*this;
         while(x!=0)
         {
-            cout<<x<<"-<"<<endl;
-            auto res=x.divmod(10);
-            s.push_back(char(res.second.v[0].get_value())+'0');
+            auto res=x.divmod_base(1000000000);
+            sprintf(st,"%.9d",res.second);
+            //s.push_back(char(res.second)+'0');
+            auto t=string(st);
+            reverse(t.begin(),t.end());
+            s+=t;
+            //for(int i=0;st[i]!='\0';i++)
+            //    s.push_back(s[i]);
             x=res.first;
         }
+        while(s.back()=='0')
+            s.pop_back();
         reverse(s.begin(),s.end());
         return s;
     }
@@ -236,20 +236,18 @@ ubgn& ubgn::operator-=(const ubgn &b)
     return *this;
 }
 
-ubgn ubgn::mul_base(const base_data_t b)const 
+ubgn& ubgn::mul_base(const base_data_t b)
 {
-    ubgn r;
-    r.v.reserve(this->size()+1);
-    auto hi=0;
+    base_data_t::bint_t hi=0;
     for(size_t i=0;i<v.size();i++)
     {
         auto x=v[i].mul(b,hi);
-        r.push_back(x.first);
+        v[i]=x.first;
         hi=x.second;
     }
     if(hi!=0)
-        r.push_back(hi);
-    return r;
+        v.push_back(hi);
+    return *this;
 }
 
 ubgn ubgn::mul_meta(const ubgn &b)const 
@@ -258,7 +256,7 @@ ubgn ubgn::mul_meta(const ubgn &b)const
     r.v.reserve(this->size()+b.size()+1);
     for(size_t i=0;i<b.size();i++)
     {
-        ubgn t=this->mul_base(b[i]);
+        ubgn t;//=this->mul_base(b[i]);
         t.left_move(i);
         r+=t;
     }
@@ -270,7 +268,6 @@ ubgn ubgn::mul_karatsuba(const ubgn &b)const
     ubgn A,B,C,D;
     A.v.insert(A.v.begin(),this->v.begin()+0,this->v.begin()+1);
     return 0;
-
 }
 
 ubgn ubgn::operator*(const ubgn &y)const 
@@ -278,6 +275,23 @@ ubgn ubgn::operator*(const ubgn &y)const
     return this->mul_meta(y);
 }
 
+pair<ubgn,base_data_t::bint_t> ubgn::divmod_base(const base_data_t b)const
+{
+    ubgn r;
+    r.v.resize(v.size(),0);
+    base_data_t::bint_t carry=0;
+    for(ssize_t i=v.size()-1;i>=0;i--)
+    {
+        auto x=v[i].divmod(b,carry);
+        r[i]=x.first;
+        carry=x.second;
+    }
+    while(r.v.back()==0)
+        r.v.pop_back();
+    if(r.size()==0)
+        r.v.push_back(0);
+    return {r,carry};
+}
 
 pair<ubgn,ubgn> ubgn::divmod(const ubgn &b)const
 {
@@ -295,7 +309,7 @@ pair<ubgn,ubgn> ubgn::divmod(const ubgn &b)const
         while(dividend>=divisor)
         {
             count++;
-            dividend-=divisor;cout<<dividend<<divisor<<endl;
+            dividend-=divisor;//cout<<dividend<<divisor<<endl;
         }
         ubgn x=count;
         x.left_move(n-1);
@@ -402,12 +416,16 @@ void print128(unsigned __int128 x)
 
 int main(int argc,char *argv[])
 {
+    auto start_time=time(NULL);
     ubgn s=1;
-    for(int i=1;i<=100;i++)
+    for(int i=1;i<=100000;i++)
     {
-        s=s*i;
+        s.mul_base(i);
     }
     cout<<"================"<<endl;
-    //cout<<s.mul_meta(s);<<endl;
+    cout<<s<<endl;
+    //auto v=s.divmod_base(1);
+    //cout<<ubgn(18).divmod_base(10).first<<endl;
+    cout<<"using time="<<time(NULL)-start_time<<endl;
     return 0;
 }
