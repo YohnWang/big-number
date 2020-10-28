@@ -1,4 +1,5 @@
 
-all:
-	g++ -Wno-literal-suffix  bgn.cpp -o a.exe
+all: a.exe
 	./a.exe
+a.exe: bgn.cpp Makefile
+	g++  -Wno-literal-suffix -Werror=return-type  bgn.cpp -o a.exe
