@@ -20,6 +20,10 @@ private:
     bint_t x;
 public:
     base_data_t(uint32_t x):x(x){}
+    base_data_t()=default;
+    //base_data_t(base_data_t &&)=default;
+    //base_data_t(const base_data_t&)=default;
+    //base_data_t& operator=(const base_data_t &)=default;
 
     auto get_value()const{return x;}
 
@@ -29,32 +33,40 @@ public:
         //return {y,static_cast<bint_t>(y<x)};
         uint64_t y=uint64_t(x)+n.x+carry;
         return {static_cast<bint_t>(y),static_cast<bint_t>(y>>32)};
+        // __uint128_t y=__uint128_t(x)+n.x+carry;
+        // return {static_cast<bint_t>(y),static_cast<bint_t>(y>>64)};
     }
 
     pair<bint_t,bint_t> sub(const base_data_t n,const bint_t carry=0) const
     {
-        //auto y=x-n.x-carry;
-        //return {y,static_cast<bint_t>(x<n.x)};
-        uint64_t y=uint64_t(x)-n.x-carry;
-        return {static_cast<bint_t>(y),static_cast<bint_t>(y>>32)};
+        auto y=x-n.x-carry;
+        return {y,static_cast<bint_t>(x<n.x)};
+        //uint64_t y=uint64_t(x)-n.x-carry+(1LLU<<32);
+        //return {static_cast<bint_t>(y),static_cast<bint_t>(y>>32)};
+        // __uint128_t y=__uint128_t(x)-n.x-carry;
+        // return {static_cast<bint_t>(y),static_cast<bint_t>(y>>64)};
     }
 
     pair<bint_t,bint_t> mul(const base_data_t n,const bint_t carry=0) const
     {
         uint64_t y=static_cast<uint64_t>(x)*static_cast<uint64_t>(n.x)+carry;
-        return {static_cast<bint_t>(y&0xffffffff),static_cast<bint_t>(y>>32)};
+        return {static_cast<bint_t>(y),static_cast<bint_t>(y>>32)};
+        // __uint128_t y=__uint128_t(x)*n.x+carry;
+        // return {static_cast<bint_t>(y),static_cast<bint_t>(y>>64)};
     }
 
     pair<bint_t,bint_t> divmod(const base_data_t n,const bint_t carry=0) const
     {
         uint64_t y=uint64_t(x)+(uint64_t(carry)<<32);
         return {y/n.x,y%n.x};
+        // __uint128_t y=__uint128_t(x)+__uint128_t(carry)<<64;
+        // return {static_cast<bint_t>(y/n.x),static_cast<bint_t>(y%n.x)};
     }
 
     bool operator<(const base_data_t n)const{return x<n.x;}
     bool operator>=(const base_data_t n)const{return x>=n.x;}
-    bool operator<=(const base_data_t n)const{return n>=*this;}
-    bool operator>(const base_data_t n)const{return n<*this;}
+    bool operator<=(const base_data_t n)const{return x<=n.x;}
+    bool operator>(const base_data_t n)const{return x>n.x;}
     bool operator==(const base_data_t n)const{return x==n.x;}
     bool operator!=(const base_data_t n)const{return x!=n.x;}
 
@@ -68,20 +80,22 @@ class ubgn
 public:
     vector<base_data_t> v;
     ubgn(uint32_t x):v{x}{}
+    //ubgn(uint64_t x){v.push_back(static_cast<base_data_t::bint_t>(x));if(x>>32)v.push_back(static_cast<base_data_t::bint_t>(x>>32));}
     ubgn(string x);
-    ubgn(const ubgn &n):v(begin(n.v),end(n.v)){}
-    ubgn(ubgn &&n){swap(v,n.v);}
+    //ubgn(const ubgn &n):v(begin(n.v),end(n.v)){}
+    //ubgn(ubgn &&n){swap(v,n.v);cout<<"&& c"<<endl;}
+    //ubgn(ubgn &&)=default;
     ubgn()=default;
-    ubgn& operator=(const ubgn &n){v=n.v;return *this;}
+    ubgn& operator=(const ubgn &n)=default;
 
     ubgn& operator+=(const ubgn &y);
     ubgn& operator-=(const ubgn &y);
-    ubgn& operator*=(const ubgn &y);
+    ubgn& operator*=(const ubgn &y){*this=this->mul_karatsuba(y);return *this;}
     ubgn& operator/=(const ubgn &y);
 
     ubgn operator+(const ubgn &y)const{ubgn r=*this;r+=y;return r;}
     ubgn operator-(const ubgn &y)const{ubgn r=*this;r-=y;return r;}
-    ubgn operator*(const ubgn &y)const;
+    ubgn operator*(const ubgn &y)const{return this->mul_karatsuba(y);}
     ubgn operator/(const ubgn &y)const{return this->divmod(y).first;}
     ubgn operator%(const ubgn &y)const{return this->divmod(y).second;}
 
@@ -90,15 +104,15 @@ public:
     bool operator==(const ubgn &y)const{return this->cmp(y)==0;}
     bool operator!=(const ubgn &y)const{return this->cmp(y)!=0;}
     bool operator<(const ubgn &y)const{return this->cmp(y)<0;}
-    bool operator<=(const ubgn &y)const{return !(*this>y);} //{return this->cmp(y)<0 || this->cmp(y)==0;}
+    bool operator<=(const ubgn &y)const{return !(*this>y);} 
     bool operator>(const ubgn &y)const{return this->cmp(y)>0;}
-    bool operator>=(const ubgn &y)const{return !(*this<y);}//{return this->cmp(y)>0 || this->cmp(y)==0;}
+    bool operator>=(const ubgn &y)const{return !(*this<y);}
 
     ubgn& mul_base(const base_data_t x);
     ubgn mul_meta(const ubgn &b)const;
     ubgn mul_karatsuba(const ubgn &b)const;
 
-    pair<ubgn,base_data_t::bint_t> divmod_base(const base_data_t x)const;
+    pair<ubgn&,base_data_t::bint_t> divmod_base(const base_data_t x);
     pair<ubgn,ubgn> divmod(const ubgn &b)const;
 
     base_data_t& operator[](size_t i){return v[i];}
@@ -111,42 +125,61 @@ public:
         if(*this!=0)
             v.insert(begin(v),n,0);
     }
+
     void right_move(size_t n)
     {
         if(n>=v.size())
-            *this=0;
+        {
+            v.clear();
+            v.push_back(0);
+        }
         v.erase(v.begin(),v.begin()+n);
     }
 
-    string to_string() const
+    void shrink_zero()
     {
-        if(*this==0)
-            return "0";
-        string s;
-        char st[32];
-        ubgn x=*this;
-        while(x!=0)
-        {
-            auto res=x.divmod_base(1000000000);
-            sprintf(st,"%.9d",res.second);
-            //s.push_back(char(res.second)+'0');
-            auto t=string(st);
-            reverse(t.begin(),t.end());
-            s+=t;
-            //for(int i=0;st[i]!='\0';i++)
-            //    s.push_back(s[i]);
-            x=res.first;
-        }
-        while(s.back()=='0')
-            s.pop_back();
-        reverse(s.begin(),s.end());
-        return s;
+        while(v.back()==0)
+            v.pop_back();
+        if(v.size()==0)
+            v.push_back(0);
     }
+    string to_string() const;
 
     friend ostream& operator<<(ostream &out, const ubgn &c1);
-    //friend ubgn operator+(const ubgn &a,const ubgn &b);
-    //friend ubgn operator-(const ubgn &a,const ubgn &b);
 };
+
+ubgn::ubgn(string x)
+{
+    ubgn r=0;
+    for(auto i:x)
+    {
+        r.mul_base(10);
+        r+=(i-'0');
+    }
+    swap(v,r.v);
+}
+
+string ubgn::to_string() const
+{
+    if(*this==0)
+        return "0";
+    string s;
+    ubgn x=*this;
+    while(x!=0)
+    {
+        auto res=x.divmod_base(1000000000);
+        auto num=res.second;
+        for(int i=0;i<9;i++)
+        {
+            s.push_back(char(num%10)+'0');
+            num/=10;
+        }
+    }
+    while(s.back()=='0')
+        s.pop_back();
+    reverse(s.begin(),s.end());
+    return s;
+}
 
 ostream& operator<<(ostream &out, const ubgn &n)
 {
@@ -177,7 +210,6 @@ int ubgn::cmp(const ubgn &b)const
             return 0;
     }
 }
-
 
 ubgn& ubgn::operator+=(const ubgn &b)
 {
@@ -231,14 +263,19 @@ ubgn& ubgn::operator-=(const ubgn &b)
         carry=x.second;
         i++;
     }
-    while(v.back()==0)
-        v.pop_back();
+    this->shrink_zero();
     return *this;
 }
 
 ubgn& ubgn::mul_base(const base_data_t b)
 {
     base_data_t::bint_t hi=0;
+    if(b==0)
+    {
+        v.clear();
+        v.push_back(0);
+        return *this;
+    }
     for(size_t i=0;i<v.size();i++)
     {
         auto x=v[i].mul(b,hi);
@@ -256,41 +293,71 @@ ubgn ubgn::mul_meta(const ubgn &b)const
     r.v.reserve(this->size()+b.size()+1);
     for(size_t i=0;i<b.size();i++)
     {
-        ubgn t;//=this->mul_base(b[i]);
+        ubgn t=*this;
+        t.mul_base(b[i]);
         t.left_move(i);
         r+=t;
     }
+    //cout<<r<<endl;
     return r;
 }
 
 ubgn ubgn::mul_karatsuba(const ubgn &b)const 
 {
+    auto& a=*this;
+    if(a.size()<32 || b.size()<32)
+    {
+        return a.mul_meta(b);
+    }
+    else if(a.size()>b.size())
+    {
+        ubgn A,B;
+        A.v.insert(begin(A.v),begin(a.v)+b.size(),end(a.v));
+        B.v.insert(begin(B.v),begin(a.v),begin(a.v)+b.size());
+        A=A.mul_karatsuba(b);
+        A.left_move(b.size());
+        return A+B.mul_karatsuba(b);
+    }
+    else if(a.size()<b.size())
+        return b.mul_karatsuba(a);
+    
     ubgn A,B,C,D;
-    A.v.insert(A.v.begin(),this->v.begin()+0,this->v.begin()+1);
-    return 0;
+    size_t low_size=a.size()/2;
+
+    A.v.insert(begin(A.v),begin(a.v)+low_size,end(a.v));
+    B.v.insert(begin(B.v),begin(a.v),begin(a.v)+low_size);
+    
+    C.v.insert(begin(C.v),begin(b.v)+low_size,end(b.v));
+    D.v.insert(begin(D.v),begin(b.v),begin(b.v)+low_size);
+
+    A.shrink_zero();B.shrink_zero();C.shrink_zero();D.shrink_zero();
+
+    auto AC=A.mul_karatsuba(C);
+    auto BD=B.mul_karatsuba(D);
+    
+    auto X=A+B;
+    auto Y=C+D;
+    auto XY=X.mul_karatsuba(Y);
+    
+    XY-=AC;
+    XY-=BD;
+    AC.left_move(low_size*2);
+    XY.left_move(low_size);
+
+    return AC+XY+BD;
 }
 
-ubgn ubgn::operator*(const ubgn &y)const 
+pair<ubgn&,base_data_t::bint_t> ubgn::divmod_base(const base_data_t b)
 {
-    return this->mul_meta(y);
-}
-
-pair<ubgn,base_data_t::bint_t> ubgn::divmod_base(const base_data_t b)const
-{
-    ubgn r;
-    r.v.resize(v.size(),0);
     base_data_t::bint_t carry=0;
     for(ssize_t i=v.size()-1;i>=0;i--)
     {
         auto x=v[i].divmod(b,carry);
-        r[i]=x.first;
+        v[i]=x.first;
         carry=x.second;
     }
-    while(r.v.back()==0)
-        r.v.pop_back();
-    if(r.size()==0)
-        r.v.push_back(0);
-    return {r,carry};
+    this->shrink_zero();
+    return {*this,carry};
 }
 
 pair<ubgn,ubgn> ubgn::divmod(const ubgn &b)const
@@ -309,123 +376,142 @@ pair<ubgn,ubgn> ubgn::divmod(const ubgn &b)const
         while(dividend>=divisor)
         {
             count++;
-            dividend-=divisor;//cout<<dividend<<divisor<<endl;
+            dividend-=divisor;
         }
         ubgn x=count;
         x.left_move(n-1);
         n=n-1;
         r+=x;
         divisor.right_move(1);
-        
     }
     return {r,dividend};
 }
 
-/* ubgn operator+(const ubgn &a, const ubgn &b)
-{
-    ubgn r;
-    auto x = a[0].add(b[0]);
-    r[0] = x.first;
-    auto carry = x.second;
-    size_t i = 1, j = 1;
-    while (i < a.size() && j < b.size())
-    {
-        auto x = a[i].add(b[j], carry);
-        r.push_back(x.first);
-        carry = x.second;
-        i++;
-        j++;
-    }
-    while (i < a.size())
-    {
-        auto x = a[i].add(0, carry);
-        r.push_back(x.first);
-        carry = x.second;
-        i++;
-    }
-    while (j < b.size())
-    {
-        auto x = b[j].add(0, carry);
-        r.push_back(x.first);
-        carry = x.second;
-        j++;
-    }
-    if (carry != 0)
-        r.push_back(carry);
-    return r;
-} */
-
-ubgn::ubgn(string x)
-{
-    for(auto i=begin(x);i!=end(x);i++)
-    {
-        if(*i<'0' || *i>'9')
-            throw std::invalid_argument("ubgn constructor input error");
-    }
-
-}
 
 class bgn
 {
-    bgn uadd(const bgn &b)
-    {
-        int carry;
-        for(size_t i=0;i<base.size();i++)
-        {
-            
-        }
-        return bgn();
-    }
-
-
-public:
-    vector<int> base;
+private:
     int sign;
-    bgn()=default;
-    bgn(long long x)
-    {
-        base.push_back(x);
-    }
+    ubgn n;
+public:
+    bgn():sign(0),n(0){}
+    bgn(int64_t x):bgn(to_string(x)){}
+    bgn(string x);
 
-    bgn(const bgn &n)
-    {
-        
-    }
+    bgn& operator+=(const bgn &y);
+    bgn& operator-=(const bgn &y);
+    bgn& operator*=(const bgn &y);
+    bgn& operator/=(const bgn &y);
+    bgn& operator%=(const bgn &y);
 
-    bgn(bgn &&n)
-    {
+    bgn operator-()const{bgn x=*this;x.sign=!x.sign;return x;}
 
-    }
+    int cmp(const bgn &y)const;
 
+    bool operator==(const bgn &y)const{return this->cmp(y)==0;}
+    bool operator!=(const bgn &y)const{return this->cmp(y)!=0;}
+    bool operator<(const bgn &y)const{return this->cmp(y)<0;}
+    bool operator<=(const bgn &y)const{return !(*this>y);}
+    bool operator>(const bgn &y)const{return this->cmp(y)>0;}
+    bool operator>=(const bgn &y)const{return !(*this<y);}
+
+    friend bgn operator+(const bgn &x,const bgn &y);
+    friend bgn operator-(const bgn &x,const bgn &y);
 };
 
+int bgn::cmp(const bgn &y)const
+{
+    auto &x=*this;
+    if(x.sign==0 && y.sign!=0)
+        return 1;
+    else if(x.sign!=0 && y.sign==0)
+        return -1;
+    else if(x.sign==0 && y.sign==0)
+        return x.n.cmp(y.n);
+    else 
+        return -x.n.cmp(y.n);
+}
+
+bgn& bgn::operator+=(const bgn &y)
+{
+    auto &x=*this;
+    if(x.sign==0 && y.sign!=0)
+        x-=-y;
+    else if(x.sign!=0 && y.sign==0)
+        x=y-x;
+    else
+        x.n+=y.n;
+    return x;
+}
+
+bgn& bgn::operator-=(const bgn &y)
+{
+
+}
+bgn& bgn::operator*=(const bgn &y);
+bgn& bgn::operator/=(const bgn &y);
+bgn& bgn::operator%=(const bgn &y);
+
+bgn operator-(const bgn &x,const bgn &y)
+{
+    // if(x.sign==0 && y.sign!=0)
+    //     return x+y;
+    // else if(x.sign!=0 && y.sign==0)
+    //     return x-y;
+    // else
+    //     x.n+=y.n;
+    // return x;
+}
+
+
+bgn::bgn(string x)
+{
+    string s;
+    int sign=0;
+    int state=0;
+    for(auto i:x)
+    {
+        if(state==0&&i=='-')
+            sign=!sign;
+        else if(i>='0'&&i<='9')
+        {
+            s.push_back(i);
+            state=1;
+        }
+        else 
+            throw invalid_argument("bgn string construct error\n");
+    }
+    this->sign=sign;
+    n=s;
+}
 
 string operator"" bgn(const char *str)
 {
     return string(str);
 }
 
-void print128(unsigned __int128 x)
-{
-    if(x!=0)
-    {
-        print128(x/1000000000);
-        cout<<int(x%1000000000);
-    }
-}
+
 
 int main(int argc,char *argv[])
 {
-    auto start_time=time(NULL);
-    ubgn s=1;
-    for(int i=1;i<=100000;i++)
+    auto start_time=clock();
+    ubgn s=1,t=1;
+    for(int i=1;i<=10000;i++)
     {
-        s.mul_base(i);
+        s*=2;
+        t*=3;
     }
     cout<<"================"<<endl;
-    cout<<s<<endl;
-    //auto v=s.divmod_base(1);
-    //cout<<ubgn(18).divmod_base(10).first<<endl;
-    cout<<"using time="<<time(NULL)-start_time<<endl;
+    //cout<<s<<endl;
+    cout<<"================"<<endl;
+    cout<<s.mul_karatsuba(t)<<endl;
+
+    cout<<"using time="<<clock()-start_time<<endl;
+
+    // ubgn x=string("1000000000000000000000000000000000000000000000000");
+    // ubgn y=string("000000000000000000000000000000000000000000000000");
+    // cout<<x.mul_meta(y)<<endl;
+
+    
     return 0;
 }
