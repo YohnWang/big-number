@@ -304,6 +304,11 @@ bgn& bgn::operator-=(const bgn &y)
 bgn& bgn::operator*=(const bgn &y)
 {
     auto &x=*this;
+    if(x==bgn(0) || y==bgn(0))
+    {
+        x=0;
+        return x;
+    }
     x.sign^=y.sign;
     x.n*=y.n;
     return x;
@@ -312,6 +317,11 @@ bgn& bgn::operator*=(const bgn &y)
 bgn& bgn::operator*=(const int y)
 {
     auto &x=*this;
+    if(y==0)
+    {
+        x=0;
+        return x;
+    }
     x.sign^=static_cast<int>(y<0);
     x.n.mul_base(y);
     return x;

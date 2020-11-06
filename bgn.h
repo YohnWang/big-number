@@ -38,8 +38,8 @@ public:
 
     pair<bint_t,bint_t> sub(const base_data_t n,const bint_t carry=0) const
     {
-        auto y=x-n.x-carry;
-        return {y,static_cast<bint_t>(x<n.x)};
+        auto y=uint64_t(x)-n.x-carry;
+        return {y,static_cast<bint_t>(y>>32)&1};
     }
 
     pair<bint_t,bint_t> mul(const base_data_t n,const bint_t carry=0) const
